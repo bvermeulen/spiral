@@ -19,45 +19,71 @@ def unit_circle():
     circle = np.exp(1j * radians)
     return np.column_stack((circle.real, circle.imag))
 
-class MovePoint():
+class ComplexPlane():
 
-    def __init__(self, ax, start_point, tolerance=1):
-        self.ax = ax
+    def __init__(self, start_point, tolerance=1):
+        self.fig, self.ax = self.setup_map()
+        self.current_object = None
+        self.currently_dragging = False
+        self.plot_types = ['-o', 'o']
+        self.plot_type = 0
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key)
 
-        # define complex constant to be added
+        # define a complex constant to be used in complex function
+        # this point is blue and can be moved interactively. Initial value is
+        # the origin
         self.constant = patches.Circle((0, 0), 0.05, fc='b', alpha=0.5,
             gid='constant')
         self.ax.add_patch(self.constant)
         self.constant.set_picker(tolerance)
-        canvas = self.constant.figure.canvas
-        canvas.mpl_connect('button_press_event', self.on_press)
-        canvas.mpl_connect('button_release_event', self.on_release)
-        canvas.mpl_connect('pick_event', self.on_pick)
-        canvas.mpl_connect('motion_notify_event', self.on_motion)
+        cv_constant = self.constant.figure.canvas
+        cv_constant.mpl_connect('button_press_event', self.on_press)
+        cv_constant.mpl_connect('button_release_event', self.on_release)
+        cv_constant.mpl_connect('pick_event', self.on_pick)
+        cv_constant.mpl_connect('motion_notify_event', self.on_motion)
 
-        # define point in complex plane
+        # define a starting point in complex plane
+        # this point is yellow and can be move interactively
         self.point = patches.Circle((start_point.real, start_point.imag),
             0.05, fc='y', alpha=0.5, gid='point')
         self.ax.add_patch(self.point)
         self.point.set_picker(tolerance)
-        canvas = self.point.figure.canvas
-        canvas.mpl_connect('button_press_event', self.on_press)
-        canvas.mpl_connect('button_release_event', self.on_release)
-        canvas.mpl_connect('pick_event', self.on_pick)
-        canvas.mpl_connect('motion_notify_event', self.on_motion)
+        cv_point = self.point.figure.canvas
+        cv_point.mpl_connect('button_press_event', self.on_press)
+        cv_point.mpl_connect('button_release_event', self.on_release)
+        cv_point.mpl_connect('pick_event', self.on_pick)
+        cv_point.mpl_connect('motion_notify_event', self.on_motion)
 
-        self.current_object = None
-        self.currently_dragging = False
         self.plot_function()
 
+    def setup_map(self):
+        # set the plot outline, including axes going through the origin
+        fig, ax = plt.subplots()
+        ax.set_xlim(-2, 2)
+        ax.set_ylim(-2, 2)
+        ax.set_aspect(1)
+        ax.tick_params(axis='both', which='major', labelsize=6)
+        ax.spines['left'].set_position('zero')
+        ax.spines['right'].set_color('none')
+        ax.spines['bottom'].set_position('zero')
+        ax.spines['top'].set_color('none')
+
+        # plot unit circle
+        c_real, c_imag = zip(*1*unit_circle())
+        ax.plot(c_real, c_imag)
+
+        return fig, ax
+
+    # TODO this function can probably be removed, to be checked
     def on_press(self, event):
-        self.currently_dragging = True
+        pass
 
     def on_release(self, event):
         self.current_object = None
         self.currently_dragging = False
 
     def on_pick(self, event):
+        self.currently_dragging = True
         self.current_object = event.artist
 
     def on_motion(self, event):
@@ -70,15 +96,14 @@ class MovePoint():
         # if self.current_object.get_gid() == 'point':
         self.remove_function_from_plot()
         self.plot_function()
-
         self.point.figure.canvas.draw()
 
     def plot_function(self):
         c_real, c_imag = zip(*z(complex(self.point.center[0], self.point.center[1]),
                                 complex(self.constant.center[0], self.constant.center[1]),
                                 100))
-        self.function_plot, = self.ax.plot(c_real, c_imag, 'o', color='r',
-            markersize=2)
+        self.function_plot, = self.ax.plot(c_real, c_imag,
+            self.plot_types[self.plot_type], color='r', markersize=2)
 
     def remove_function_from_plot(self):
         try:
@@ -86,24 +111,17 @@ class MovePoint():
         except ValueError:
             pass
 
+    def on_key(self, event):
+        # with 'space' toggle between just points or points connected with
+        # lines
+        if event.key == ' ':
+            self.plot_type = (self.plot_type + 1) % 2
+            self.remove_function_from_plot()
+            self.plot_function()
+            self.point.figure.canvas.draw()
+
 def main(start_point, n):
-    # set the plot outline, including axes going through the origin
-    fig, ax = plt.subplots()
-    ax.set_xlim(-1.5, 1.5)
-    ax.set_ylim(-1.5, 1.5)
-    ax.set_aspect(1)
-    ax.tick_params(axis='both', which='major', labelsize=6)
-    ax.spines['left'].set_position('zero')
-    ax.spines['right'].set_color('none')
-    ax.spines['bottom'].set_position('zero')
-    ax.spines['top'].set_color('none')
-
-    # plot unit circle
-    c_real, c_imag = zip(*1*unit_circle())
-    ax.plot(c_real, c_imag)
-
-    dr = MovePoint(ax, start_point)
-
+    complexplay = ComplexPlane(start_point)
     plt.show()
 
 
