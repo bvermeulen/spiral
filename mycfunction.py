@@ -5,13 +5,17 @@ import matplotlib.patches as patches
 from pprint import pprint
 
 
-def z(point, constant, n):
+PLOT_LIMIT = 3
+NUM_ITERATIONS = 100
+FIG_SIZE = (10, 10)
+
+def z(point, constant):
   c = point
   c_numbers = np.array(c)
-  for i in range(n):
+  for i in range(NUM_ITERATIONS):
       c = c**2 + constant
       c_numbers = np.append(c_numbers, c)
-  return np.column_stack((c_numbers.real, c_numbers.imag))
+  return c_numbers
 
 
 def unit_circle():
@@ -19,7 +23,7 @@ def unit_circle():
     circle = np.exp(1j * radians)
     return np.column_stack((circle.real, circle.imag))
 
-class ComplexPlane():
+class PlotComplexFunction():
 
     def __init__(self, start_point, tolerance=1):
         self.fig, self.ax = self.setup_map()
@@ -32,7 +36,7 @@ class ComplexPlane():
         # define a complex constant to be used in complex function
         # this point is blue and can be moved interactively. Initial value is
         # the origin
-        self.constant = patches.Circle((0, 0), 0.05, fc='b', alpha=0.5,
+        self.constant = patches.Circle((0, 0), 0.05, fc='b', alpha=1,
             gid='constant')
         self.ax.add_patch(self.constant)
         self.constant.set_picker(tolerance)
@@ -45,7 +49,7 @@ class ComplexPlane():
         # define a starting point in complex plane
         # this point is yellow and can be move interactively
         self.point = patches.Circle((start_point.real, start_point.imag),
-            0.05, fc='y', alpha=0.5, gid='point')
+            0.05, fc='yellow', alpha=1, gid='point')
         self.ax.add_patch(self.point)
         self.point.set_picker(tolerance)
         cv_point = self.point.figure.canvas
@@ -58,10 +62,12 @@ class ComplexPlane():
 
     def setup_map(self):
         # set the plot outline, including axes going through the origin
-        fig, ax = plt.subplots()
-        ax.set_xlim(-2, 2)
-        ax.set_ylim(-2, 2)
+        fig, ax = plt.subplots(figsize=FIG_SIZE)
+        ax.set_xlim(-PLOT_LIMIT, PLOT_LIMIT)
+        ax.set_ylim(-PLOT_LIMIT, PLOT_LIMIT)
         ax.set_aspect(1)
+        ax.set_xticks(np.arange(-PLOT_LIMIT, PLOT_LIMIT+0.1, step=0.2))
+        ax.set_yticks(np.arange(-PLOT_LIMIT, PLOT_LIMIT+0.1, step=0.2))
         ax.tick_params(axis='both', which='major', labelsize=6)
         ax.spines['left'].set_position('zero')
         ax.spines['right'].set_color('none')
@@ -73,6 +79,9 @@ class ComplexPlane():
         ax.plot(c_real, c_imag)
 
         return fig, ax
+
+    def get_ax():
+        return self.ax
 
     # TODO this function can probably be removed, to be checked
     def on_press(self, event):
@@ -99,11 +108,11 @@ class ComplexPlane():
         self.point.figure.canvas.draw()
 
     def plot_function(self):
-        c_real, c_imag = zip(*z(complex(self.point.center[0], self.point.center[1]),
-                                complex(self.constant.center[0], self.constant.center[1]),
-                                100))
-        self.function_plot, = self.ax.plot(c_real, c_imag,
-            self.plot_types[self.plot_type], color='r', markersize=2)
+        print(f'constant: {self.constant.center[0]:.2f}, {self.constant.center[1]:.2f}\r', end='')
+        c_numbers = z(complex(self.point.center[0], self.point.center[1]),
+                      complex(self.constant.center[0], self.constant.center[1]))
+        self.function_plot, = self.ax.plot(c_numbers.real, c_numbers.imag,
+            self.plot_types[self.plot_type], color='r', lw=0.3, markersize=2)
 
     def remove_function_from_plot(self):
         try:
@@ -120,13 +129,13 @@ class ComplexPlane():
             self.plot_function()
             self.point.figure.canvas.draw()
 
-def main(start_point, n):
-    complexplay = ComplexPlane(start_point)
+def main(start_point):
+    complexplay = PlotComplexFunction(start_point)
+    plt.tight_layout()
     plt.show()
 
 
 if __name__ == "__main__":
     # a good example for constant = 0.3 + 0.25j
     start_point = complex(sys.argv[1])
-    n = int(sys.argv[2])
-    main(start_point, n)
+    main(start_point)
