@@ -43,7 +43,7 @@ def find_boundary_juliaset(r_range, c_range, constant, max_iterations):
     cols = len(c_range)
     start = len(stables)
     stable_field = []
-    for i_num in range(cols):
+    for _ in range(cols):
         start -= rows
         real_vals = [1 if val == True else 0 for val in stables[start:start+rows]]
         stable_field.append(real_vals)

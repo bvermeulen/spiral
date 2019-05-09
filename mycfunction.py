@@ -12,7 +12,7 @@ FIG_SIZE = (10, 10)
 def z(point, constant):
   c = point
   c_numbers = np.array(c)
-  for i in range(NUM_ITERATIONS):
+  for _ in range(NUM_ITERATIONS):
       c = c**2 + constant
       c_numbers = np.append(c_numbers, c)
   return c_numbers
@@ -80,7 +80,7 @@ class PlotComplexFunction():
 
         return fig, ax
 
-    def get_ax():
+    def get_ax(self):
         return self.ax
 
     # TODO this function can probably be removed, to be checked
@@ -130,12 +130,16 @@ class PlotComplexFunction():
             self.point.figure.canvas.draw()
 
 def main(start_point):
-    complexplay = PlotComplexFunction(start_point)
+    _ = PlotComplexFunction(start_point)
     plt.tight_layout()
     plt.show()
 
 
 if __name__ == "__main__":
     # a good example for constant = 0.3 + 0.25j
-    start_point = complex(sys.argv[1])
+    try:
+        start_point = complex(sys.argv[1])
+    except IndexError:
+        start_point= 0.3 + 0.25j
+
     main(start_point)
