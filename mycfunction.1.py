@@ -10,26 +10,35 @@ NUM_ITERATIONS = 100
 FIG_SIZE = (10, 10)
 
 
-class SetUpMap():
+class MainMap():
 
-    def __init__(self, fig_size, plot_limit):
+    @classmethod
+    def settings(cls, fig_size, plot_limit):
         # set the plot outline, including axes going through the origin
-        self.fig, self.ax = plt.subplots(figsize=fig_size)
-        self.ax.set_xlim(-PLOT_LIMIT, PLOT_LIMIT)
-        self.ax.set_ylim(-PLOT_LIMIT, PLOT_LIMIT)
-        self.ax.set_aspect(1)
+        cls.fig, cls.ax = plt.subplots(figsize=fig_size)
+        cls.ax.set_xlim(-PLOT_LIMIT, PLOT_LIMIT)
+        cls.ax.set_ylim(-PLOT_LIMIT, PLOT_LIMIT)
+        cls.ax.set_aspect(1)
         tick_range = np.arange(round(-plot_limit + (10*plot_limit % 2)/10, 1), plot_limit + 0.1, step=0.2)
-        self.ax.set_xticks(tick_range)
-        self.ax.set_yticks(tick_range)
-        self.ax.tick_params(axis='both', which='major', labelsize=6)
-        self.ax.spines['left'].set_position('zero')
-        self.ax.spines['right'].set_color('none')
-        self.ax.spines['bottom'].set_position('zero')
-        self.ax.spines['top'].set_color('none')
+        cls.ax.set_xticks(tick_range)
+        cls.ax.set_yticks(tick_range)
+        cls.ax.tick_params(axis='both', which='major', labelsize=6)
+        cls.ax.spines['left'].set_position('zero')
+        cls.ax.spines['right'].set_color('none')
+        cls.ax.spines['bottom'].set_position('zero')
+        cls.ax.spines['top'].set_color('none')
 
         # plot unit circle
-        c_real, c_imag = zip(*1*self.unit_circle())
-        self.ax.plot(c_real, c_imag)
+        c_real, c_imag = zip(*1*cls.unit_circle())
+        cls.ax.plot(c_real, c_imag)
+    
+    def get_ax(cls):
+        return cls.ax
+
+    @staticmethod
+    def plot():
+        plt.tight_layout()
+        plt.show()
 
     @staticmethod
     def unit_circle():
@@ -38,11 +47,48 @@ class SetUpMap():
         return np.column_stack((circle.real, circle.imag))
 
 
-class PlotMandelbrotPoints(SetUpMap):
+class PlotJuliaSets(MainMap):
+
+    def __init__(self, tolerance=0):
+
+        # self.fig = fig
+        # self.ax = ax
+        self.current_object = None
+        self.currently_dragging = False
+
+        self.point = patches.Circle((0.5, 0.5), 0.05, fc='g', alpha=1)
+        self.ax.add_patch(self.point)
+        self.point.set_picker(tolerance)
+        cv_point = self.point.figure.canvas
+        cv_point.mpl_connect('button_release_event', self.on_release)
+        cv_point.mpl_connect('pick_event', self.on_pick)
+        cv_point.mpl_connect('motion_notify_event', self.on_motion)
+
+
+    def on_release(self, event):
+        self.current_object = None
+        self.currently_dragging = False
+
+    def on_pick(self, event):
+        self.currently_dragging = True
+        self.current_object = event.artist
+
+    def on_motion(self, event):
+        if not self.currently_dragging:
+            return
+        if self.current_object == None:
+            return
+
+        self.current_object.center = event.xdata, event.ydata
+        self.point.figure.canvas.draw()
+
+
+class PlotMandelbrotPoints(MainMap):
 
     def __init__(self, start_point, num_iterations, tolerance=0):
-        super().__init__(FIG_SIZE, PLOT_LIMIT)
 
+        # self.fig = fig
+        # self.ax = ax
         self.num_iterations = num_iterations
         self.current_object = None
         self.currently_dragging = False
@@ -86,8 +132,6 @@ class PlotMandelbrotPoints(SetUpMap):
         self.function_plot, = self.ax.plot(c_numbers.real, c_numbers.imag,
             self.plot_types[self.plot_type], color='r', lw=0.3, markersize=2)
 
-    def get_ax(self):
-        return self.ax
 
     def on_release(self, event):
         self.current_object = None
@@ -104,7 +148,6 @@ class PlotMandelbrotPoints(SetUpMap):
             return
 
         self.current_object.center = event.xdata, event.ydata
-        # if self.current_object.get_gid() == 'point':
         self.remove_function_from_plot()
         self.plot_mandelbrot_points()
         self.point.figure.canvas.draw()
@@ -126,10 +169,11 @@ class PlotMandelbrotPoints(SetUpMap):
 
 
 def main(start_point):
-    _ = PlotMandelbrotPoints(start_point, NUM_ITERATIONS)
-    plt.tight_layout()
-    plt.show()
 
+    MainMap.settings(FIG_SIZE, PLOT_LIMIT)
+    pmp = PlotMandelbrotPoints(start_point, NUM_ITERATIONS)  #pylint: disable=unused-variable
+    pjs = PlotJuliaSets()  #pylint: disable=unused-variable
+    MainMap.plot()
 
 if __name__ == "__main__":
     # a good example for constant = 0.3 + 0.25j
