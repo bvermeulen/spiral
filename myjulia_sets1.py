@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # Plot ranges
 r_min, r_max = -1.5, 1.5
 c_min, c_max = -1.1, 1.1
-dpu = 300  # dots per unit - 50 dots per 1 units means 200 points per 4 units
+dpu = 100  # dots per unit - 50 dots per 1 units means 200 points per 4 units
 max_iterations = 100
 cmap='hot'
 
@@ -16,7 +16,7 @@ c_range = np.arange(c_min, c_max + intval, intval)
 
 # constant = -0.624+0.435j
 # constant = 0.0+0.0j
-constant = -0.35 - 0.20j
+constant = -0.56 - 0.10j
 
 def juliaset_func(point, constant):
     z = point
