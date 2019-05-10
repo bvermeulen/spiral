@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # Plot ranges
 r_min, r_max = -1.5, 1.5
 c_min, c_max = -1.1, 1.1
-dpu = 100  # dots per unit - 50 dots per 1 units means 200 points per 4 units
+dpu = 300  # dots per unit - 50 dots per 1 units means 200 points per 4 units
 max_iterations = 100
 cmap='hot'
 
@@ -112,7 +112,6 @@ cols, rows = stable_boundary.shape
 assert cols == len(c_range), "check c_range and cols"
 assert rows == len(r_range), "check r_range and rows"
 
-zero_field = np.zeros((cols, rows))
 for col in range(cols):
     for row in range(rows):
         if stable_boundary[col, row] in [1]:

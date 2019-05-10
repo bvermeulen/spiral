@@ -2,11 +2,16 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from scipy.signal import convolve2d
 from pprint import pprint
 
 
-PLOT_LIMIT = 2.5
+PLOT_LIMIT = 1.2
 NUM_ITERATIONS = 100
+
+DPU_JULIASET = 40
+MAX_ITERATIONS_JULIASET = 20
+
 FIG_SIZE = (10, 10)
 
 
@@ -16,10 +21,11 @@ class MainMap():
     def settings(cls, fig_size, plot_limit):
         # set the plot outline, including axes going through the origin
         cls.fig, cls.ax = plt.subplots(figsize=fig_size)
-        cls.ax.set_xlim(-PLOT_LIMIT, PLOT_LIMIT)
-        cls.ax.set_ylim(-PLOT_LIMIT, PLOT_LIMIT)
+        cls.plot_limit = plot_limit
+        cls.ax.set_xlim(-cls.plot_limit, cls.plot_limit)
+        cls.ax.set_ylim(-cls.plot_limit, cls.plot_limit)
         cls.ax.set_aspect(1)
-        tick_range = np.arange(round(-plot_limit + (10*plot_limit % 2)/10, 1), plot_limit + 0.1, step=0.2)
+        tick_range = np.arange(round(-cls.plot_limit + (10*cls.plot_limit % 2)/10, 1), cls.plot_limit + 0.1, step=0.2)
         cls.ax.set_xticks(tick_range)
         cls.ax.set_yticks(tick_range)
         cls.ax.tick_params(axis='both', which='major', labelsize=6)
@@ -30,8 +36,9 @@ class MainMap():
 
         # plot unit circle
         c_real, c_imag = zip(*1*cls.unit_circle())
-        cls.ax.plot(c_real, c_imag)
+        cls.ax.plot(c_real, c_imag, c='black')
     
+    @classmethod
     def get_ax(cls):
         return cls.ax
 
@@ -50,45 +57,114 @@ class MainMap():
 class PlotJuliaSets(MainMap):
 
     def __init__(self, tolerance=0):
-
-        # self.fig = fig
-        # self.ax = ax
         self.current_object = None
-        self.currently_dragging = False
+        self.current_dragging = False
 
-        self.point = patches.Circle((0.5, 0.5), 0.05, fc='g', alpha=1)
-        self.ax.add_patch(self.point)
-        self.point.set_picker(tolerance)
-        cv_point = self.point.figure.canvas
+        self.julia_constant = patches.Circle((0.0, 0.3), 0.05, fc='g', alpha=1)
+        self.ax.add_patch(self.julia_constant)
+        self.julia_constant.set_picker(tolerance)
+        cv_point = self.julia_constant.figure.canvas
         cv_point.mpl_connect('button_release_event', self.on_release)
         cv_point.mpl_connect('pick_event', self.on_pick)
         cv_point.mpl_connect('motion_notify_event', self.on_motion)
 
+        self.plot_boundary_juliaset()
+
+    @staticmethod
+    def juliaset_func(point, constant):
+        max_iterations = MAX_ITERATIONS_JULIASET
+        z = point
+        stable = True
+        num_iterations = 1
+        while stable and num_iterations < max_iterations:
+            z = z**2 + constant
+            if abs(z) > max(abs(constant), 2):
+                stable = False
+                return (stable, num_iterations)
+            num_iterations += 1
+
+        return (stable, 0)
+
+    def plot_boundary_juliaset(self):
+        # determines the resolution of the boundary of the julia set
+        # dots per unit - 50 dots per 1 units means 200 points per 4 units
+        dpu = DPU_JULIASET
+        intval = 1 / dpu
+        r_range = np.arange(-self.plot_limit, self.plot_limit + intval, intval)
+        c_range = np.arange(-self.plot_limit, self.plot_limit + intval, intval)
+        constant = complex(self.julia_constant.center[0], self.julia_constant.center[1])
+
+        stables = np.array([], dtype='bool')
+        for imag in c_range:
+            for real in r_range:
+                stable, _ = self.juliaset_func(complex(real, imag), constant)
+                stables = np.append(stables, stable)
+
+        rows = len(r_range)
+        cols = len(c_range)
+        start = len(stables)
+        stable_field = []
+        for _ in range(cols):
+            start -= rows
+            real_vals = [1 if val == True else 0 for val in stables[start:start+rows]]
+            stable_field.append(real_vals)
+        stable_field = np.array(stable_field, dtype='int')
+
+        kernel = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
+        stable_boundary = convolve2d(stable_field, kernel, mode='same')
+
+        boundary_points = np.array([], dtype='complex')
+        for col in range(cols):
+            for row in range(rows):
+                if stable_boundary[col, row] in [1]:
+                    real_val = r_range[row]
+                    # invert cols as min imag value is highest col and vice versa
+                    imag_val = c_range[cols-1 - col]
+                    boundary_points = np.append(boundary_points, complex(real_val, imag_val))
+                else:
+                    pass
+
+        self.function_plot, = self.ax.plot(boundary_points.real, boundary_points.imag, 
+            'o', c='g', markersize=2)
+        # self.julia_constant.figure.canvas.draw()
 
     def on_release(self, event):
         self.current_object = None
-        self.currently_dragging = False
+        self.current_dragging = False
 
     def on_pick(self, event):
-        self.currently_dragging = True
+        if event.artist != self.julia_constant:
+            return
+        
+        self.current_dragging = True
         self.current_object = event.artist
+        print(f'I am picked: {self.current_object}')
 
     def on_motion(self, event):
-        if not self.currently_dragging:
+        if not self.current_dragging:
             return
         if self.current_object == None:
             return
 
-        self.current_object.center = event.xdata, event.ydata
-        self.point.figure.canvas.draw()
+        print(f'i am moving: {self.julia_constant.center}')
+        self.remove_function_from_plot()
+        self.plot_boundary_juliaset()
+
+        self.julia_constant.center = event.xdata, event.ydata
+        self.julia_constant.figure.canvas.draw()
+
+    def remove_function_from_plot(self):
+        try:
+            self.function_plot.remove()
+            # self.julia_constant.figure.canvas.draw()
+        except ValueError:
+            pass
 
 
 class PlotMandelbrotPoints(MainMap):
 
     def __init__(self, start_point, num_iterations, tolerance=0):
 
-        # self.fig = fig
-        # self.ax = ax
         self.num_iterations = num_iterations
         self.current_object = None
         self.currently_dragging = False
@@ -99,8 +175,8 @@ class PlotMandelbrotPoints(MainMap):
         # define a complex constant to be used in complex function
         # this point is blue and can be moved interactively. Initial value is
         # the origin
-        self.constant = patches.Circle((0, 0), 0.05, fc='b', alpha=1,
-            gid='constant')
+        self.constant = patches.Circle((start_point.real, start_point.imag), 0.05, 
+            fc='blue', alpha=1)
         self.ax.add_patch(self.constant)
         self.constant.set_picker(tolerance)
         cv_constant = self.constant.figure.canvas
@@ -110,8 +186,7 @@ class PlotMandelbrotPoints(MainMap):
 
         # define a starting point in complex plane
         # this point is yellow and can be move interactively
-        self.point = patches.Circle((start_point.real, start_point.imag),
-            0.05, fc='yellow', alpha=1, gid='point')
+        self.point = patches.Circle((0, 0), 0.05, fc='yellow', alpha=1)
         self.ax.add_patch(self.point)
         self.point.set_picker(tolerance)
         cv_point = self.point.figure.canvas
