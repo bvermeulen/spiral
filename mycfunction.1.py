@@ -10,7 +10,7 @@ PLOT_LIMIT = 1.2
 NUM_ITERATIONS = 100
 
 DPU_JULIASET = 40
-MAX_ITERATIONS_JULIASET = 20
+MAX_ITERATIONS_JULIASET = 100
 
 FIG_SIZE = (10, 10)
 
@@ -35,9 +35,9 @@ class MainMap():
         cls.ax.spines['top'].set_color('none')
 
         # plot unit circle
-        c_real, c_imag = zip(*1*cls.unit_circle())
-        cls.ax.plot(c_real, c_imag, c='black')
-    
+        circle = 1*cls.unit_circle()
+        cls.ax.plot(circle.real, circle.imag, c='black')
+
     @classmethod
     def get_ax(cls):
         return cls.ax
@@ -51,7 +51,7 @@ class MainMap():
     def unit_circle():
         radians = np.linspace(-np.pi, np.pi, 1000)
         circle = np.exp(1j * radians)
-        return np.column_stack((circle.real, circle.imag))
+        return circle
 
 
 class PlotJuliaSets(MainMap):
@@ -72,11 +72,10 @@ class PlotJuliaSets(MainMap):
 
     @staticmethod
     def juliaset_func(point, constant):
-        max_iterations = MAX_ITERATIONS_JULIASET
         z = point
         stable = True
         num_iterations = 1
-        while stable and num_iterations < max_iterations:
+        while stable and num_iterations < MAX_ITERATIONS_JULIASET:
             z = z**2 + constant
             if abs(z) > max(abs(constant), 2):
                 stable = False
@@ -88,8 +87,7 @@ class PlotJuliaSets(MainMap):
     def plot_boundary_juliaset(self):
         # determines the resolution of the boundary of the julia set
         # dots per unit - 50 dots per 1 units means 200 points per 4 units
-        dpu = DPU_JULIASET
-        intval = 1 / dpu
+        intval = 1 / DPU_JULIASET
         r_range = np.arange(-self.plot_limit, self.plot_limit + intval, intval)
         c_range = np.arange(-self.plot_limit, self.plot_limit + intval, intval)
         constant = complex(self.julia_constant.center[0], self.julia_constant.center[1])
@@ -124,7 +122,7 @@ class PlotJuliaSets(MainMap):
                 else:
                     pass
 
-        self.function_plot, = self.ax.plot(boundary_points.real, boundary_points.imag, 
+        self.function_plot, = self.ax.plot(boundary_points.real, boundary_points.imag,
             'o', c='g', markersize=2)
         # self.julia_constant.figure.canvas.draw()
 
@@ -135,7 +133,7 @@ class PlotJuliaSets(MainMap):
     def on_pick(self, event):
         if event.artist != self.julia_constant:
             return
-        
+
         self.current_dragging = True
         self.current_object = event.artist
         print(f'I am picked: {self.current_object}')
@@ -175,7 +173,7 @@ class PlotMandelbrotPoints(MainMap):
         # define a complex constant to be used in complex function
         # this point is blue and can be moved interactively. Initial value is
         # the origin
-        self.constant = patches.Circle((start_point.real, start_point.imag), 0.05, 
+        self.constant = patches.Circle((start_point.real, start_point.imag), 0.05,
             fc='blue', alpha=1)
         self.ax.add_patch(self.constant)
         self.constant.set_picker(tolerance)
