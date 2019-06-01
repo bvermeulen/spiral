@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from scipy.signal import convolve2d
 from pprint import pprint
-
+import json
 
 PLOT_LIMIT = 1.2
 NUM_ITERATIONS = 100
@@ -54,7 +54,7 @@ class MainMap():
         return circle
 
 
-class PlotJuliaSets(MainMap):
+class JuliaSets(MainMap):
 
     def __init__(self, tolerance=0):
         self.current_object = None
@@ -151,6 +151,13 @@ class PlotJuliaSets(MainMap):
         self.julia_constant.center = event.xdata, event.ydata
         self.julia_constant.figure.canvas.draw()
 
+    
+        # elif event.key == 's':
+        #     boundary_dict = {'boundary': boundary_points}
+        #     with open('myjulia.json', 'wt') as json_file:
+        #         json.dump(boundary_dict, json_file)
+
+
     def remove_function_from_plot(self):
         try:
             self.function_plot.remove()
@@ -159,7 +166,7 @@ class PlotJuliaSets(MainMap):
             pass
 
 
-class PlotMandelbrotPoints(MainMap):
+class MandelbrotPoints(MainMap):
 
     def __init__(self, start_point, num_iterations, tolerance=0):
 
@@ -168,7 +175,6 @@ class PlotMandelbrotPoints(MainMap):
         self.currently_dragging = False
         self.plot_types = ['-o', 'o']
         self.plot_type = 0
-        self.fig.canvas.mpl_connect('key_press_event', self.on_key)
 
         # define a complex constant to be used in complex function
         # this point is blue and can be moved interactively. Initial value is
@@ -231,22 +237,33 @@ class PlotMandelbrotPoints(MainMap):
         except ValueError:
             pass
 
-    def on_key(self, event):
+
+class OnKey(MainMap):
+    @classmethod
+    def start(cls, mp, js):
+        cls.fig.canvas.mpl_connect('key_press_event', cls.on_key)
+        cls.mp = mp
+        cls.js = js
+
+    @classmethod
+    def on_key(cls, event):
         # with 'space' toggle between just points or points connected with
         # lines
         if event.key == ' ':
-            self.plot_type = (self.plot_type + 1) % 2
-            self.remove_function_from_plot()
-            self.plot_mandelbrot_points()
-            self.point.figure.canvas.draw()
+            cls.mp.plot_type = (cls.mp.plot_type + 1) % 2
+            cls.mp.remove_function_from_plot()
+            cls.mp.plot_mandelbrot_points()
+            cls.mp.point.figure.canvas.draw()
 
 
 def main(start_point):
 
     MainMap.settings(FIG_SIZE, PLOT_LIMIT)
-    pmp = PlotMandelbrotPoints(start_point, NUM_ITERATIONS)  #pylint: disable=unused-variable
-    pjs = PlotJuliaSets()  #pylint: disable=unused-variable
+    mp = MandelbrotPoints(start_point, NUM_ITERATIONS)
+    js = JuliaSets()
+    OnKey.start(mp, js)
     MainMap.plot()
+
 
 if __name__ == "__main__":
     # a good example for constant = 0.3 + 0.25j
