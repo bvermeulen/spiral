@@ -1,18 +1,21 @@
 import sys
 import numpy as np
+from shapely.geometry import Point
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+from matplotlib import patches as mpl_patches
+from matplotlib.collections import PatchCollection
+from descartes.patch import PolygonPatch
 from scipy.signal import convolve2d
-from pprint import pprint
+from convex_hull_alpha_shape import alpha_shape
 import json
 
-PLOT_LIMIT = 1.2
-NUM_ITERATIONS = 100
-
-DPU_JULIASET = 40
-MAX_ITERATIONS_JULIASET = 100
-
 FIG_SIZE = (10, 10)
+PLOT_LIMIT = 1.5
+NUM_ITERATIONS = 100
+DPU_JULIASET = 40
+MAX_ITERATIONS_JULIASET = 50
+BORDER_RANGE = range(1, 6)
+ALPHA = 0.1
 
 
 class MainMap():
@@ -60,7 +63,7 @@ class JuliaSets(MainMap):
         self.current_object = None
         self.current_dragging = False
 
-        self.julia_constant = patches.Circle((0.0, 0.3), 0.05, fc='g', alpha=1)
+        self.julia_constant = mpl_patches.Circle((0.0, 0.3), 0.05, fc='g', alpha=1)
         self.ax.add_patch(self.julia_constant)
         self.julia_constant.set_picker(tolerance)
         cv_point = self.julia_constant.figure.canvas
@@ -111,20 +114,32 @@ class JuliaSets(MainMap):
         kernel = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
         stable_boundary = convolve2d(stable_field, kernel, mode='same')
 
-        boundary_points = np.array([], dtype='complex')
+        self.boundary_points = np.array([], dtype='complex')
         for col in range(cols):
             for row in range(rows):
-                if stable_boundary[col, row] in [1]:
+                if stable_boundary[col, row] in BORDER_RANGE:
                     real_val = r_range[row]
                     # invert cols as min imag value is highest col and vice versa
                     imag_val = c_range[cols-1 - col]
-                    boundary_points = np.append(boundary_points, complex(real_val, imag_val))
+                    self.boundary_points = np.append(self.boundary_points, 
+                        complex(real_val, imag_val))
                 else:
                     pass
 
-        self.function_plot, = self.ax.plot(boundary_points.real, boundary_points.imag,
-            'o', c='g', markersize=2)
-        # self.julia_constant.figure.canvas.draw()
+        bnd_points = [Point(val.real, val.imag) for val in self.boundary_points]
+        bnd_polygon, _ = alpha_shape(bnd_points, ALPHA)
+
+        patches = []
+        if bnd_polygon.geom_type == 'Polygon':
+            patches.append(PolygonPatch(bnd_polygon))
+            ec, lw = 'red', 2
+        else:
+            for poly in bnd_polygon:
+                patches.append(PolygonPatch(poly))
+            ec, lw = 'green', 1
+
+        p = PatchCollection(patches, facecolor='none', edgecolor=ec, lw=lw)
+        self.juliaset_plot = self.ax.add_collection(p)
 
     def on_release(self, event):
         self.current_object = None
@@ -136,7 +151,6 @@ class JuliaSets(MainMap):
 
         self.current_dragging = True
         self.current_object = event.artist
-        print(f'I am picked: {self.current_object}')
 
     def on_motion(self, event):
         if not self.current_dragging:
@@ -144,24 +158,15 @@ class JuliaSets(MainMap):
         if self.current_object == None:
             return
 
-        print(f'i am moving: {self.julia_constant.center}')
-        self.remove_function_from_plot()
+        self.remove_juliaset_from_plot()
         self.plot_boundary_juliaset()
 
         self.julia_constant.center = event.xdata, event.ydata
         self.julia_constant.figure.canvas.draw()
 
-    
-        # elif event.key == 's':
-        #     boundary_dict = {'boundary': boundary_points}
-        #     with open('myjulia.json', 'wt') as json_file:
-        #         json.dump(boundary_dict, json_file)
-
-
-    def remove_function_from_plot(self):
+    def remove_juliaset_from_plot(self):
         try:
-            self.function_plot.remove()
-            # self.julia_constant.figure.canvas.draw()
+            self.juliaset_plot.remove()
         except ValueError:
             pass
 
@@ -179,8 +184,8 @@ class MandelbrotPoints(MainMap):
         # define a complex constant to be used in complex function
         # this point is blue and can be moved interactively. Initial value is
         # the origin
-        self.constant = patches.Circle((start_point.real, start_point.imag), 0.05,
-            fc='blue', alpha=1)
+        self.constant = mpl_patches.Circle((start_point.real, start_point.imag), 
+            0.05, fc='blue', alpha=1)
         self.ax.add_patch(self.constant)
         self.constant.set_picker(tolerance)
         cv_constant = self.constant.figure.canvas
@@ -190,7 +195,7 @@ class MandelbrotPoints(MainMap):
 
         # define a starting point in complex plane
         # this point is yellow and can be move interactively
-        self.point = patches.Circle((0, 0), 0.05, fc='yellow', alpha=1)
+        self.point = mpl_patches.Circle((0, 0), 0.05, fc='yellow', alpha=1)
         self.ax.add_patch(self.point)
         self.point.set_picker(tolerance)
         cv_point = self.point.figure.canvas
@@ -208,9 +213,8 @@ class MandelbrotPoints(MainMap):
             c = c**2 + c_constant
             c_numbers = np.append(c_numbers, c)
 
-        self.function_plot, = self.ax.plot(c_numbers.real, c_numbers.imag,
+        self.mandelbrot_plot, = self.ax.plot(c_numbers.real, c_numbers.imag,
             self.plot_types[self.plot_type], color='r', lw=0.3, markersize=2)
-
 
     def on_release(self, event):
         self.current_object = None
@@ -227,23 +231,24 @@ class MandelbrotPoints(MainMap):
             return
 
         self.current_object.center = event.xdata, event.ydata
-        self.remove_function_from_plot()
+        self.remove_mandelbrot_from_plot()
         self.plot_mandelbrot_points()
         self.point.figure.canvas.draw()
 
-    def remove_function_from_plot(self):
+    def remove_mandelbrot_from_plot(self):
         try:
-            self.function_plot.remove()
+            self.mandelbrot_plot.remove()
         except ValueError:
             pass
 
 
 class OnKey(MainMap):
     @classmethod
-    def start(cls, mp, js):
+    def start(cls, mp, jp):
         cls.fig.canvas.mpl_connect('key_press_event', cls.on_key)
         cls.mp = mp
-        cls.js = js
+        cls.jp = jp
+        cls.json_file_count = 2
 
     @classmethod
     def on_key(cls, event):
@@ -251,17 +256,25 @@ class OnKey(MainMap):
         # lines
         if event.key == ' ':
             cls.mp.plot_type = (cls.mp.plot_type + 1) % 2
-            cls.mp.remove_function_from_plot()
+            cls.mp.remove_mandelbrot_from_plot()
             cls.mp.plot_mandelbrot_points()
             cls.mp.point.figure.canvas.draw()
+
+        elif event.key in ['j', 'J']:
+            cls.json_file_count += 1
+            json_file_name = ''.join(['julia_set_', 
+                str(cls.json_file_count), '.json']) 
+            bnd_pts = [(val.real, val.imag) for val in cls.jp.boundary_points]
+            with open(json_file_name, 'wt') as json_file:
+                json.dump({'boundary': bnd_pts}, json_file)
 
 
 def main(start_point):
 
     MainMap.settings(FIG_SIZE, PLOT_LIMIT)
     mp = MandelbrotPoints(start_point, NUM_ITERATIONS)
-    js = JuliaSets()
-    OnKey.start(mp, js)
+    jp = JuliaSets()
+    OnKey.start(mp, jp)
     MainMap.plot()
 
 
